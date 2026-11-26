@@ -1,0 +1,58 @@
+{
+  "zones": [
+    {
+      "zone_id": "ZONE_KODAGU",
+      "name": "Kodagu (Coorg Highlands)",
+      "district": "Kodagu",
+      "min_lat": 11.90,
+      "max_lat": 12.60,
+      "min_lon": 75.50,
+      "max_lon": 76.15
+    },
+    {
+      "zone_id": "ZONE_DAKSHINA_KANNADA",
+      "name": "Coastal Dakshina Kannada & Mangaluru",
+      "district": "Dakshina Kannada",
+      "min_lat": 12.61,
+      "max_lat": 13.20,
+      "min_lon": 74.70,
+      "max_lon": 75.45
+    },
+    {
+      "zone_id": "ZONE_CHIKMAGALUR",
+      "name": "Chikmagalur Malnad Ridge",
+      "district": "Chikmagalur",
+      "min_lat": 13.21,
+      "max_lat": 13.75,
+      "min_lon": 75.45,
+      "max_lon": 76.15
+    },
+    {
+      "zone_id": "ZONE_SHIMOGA_AGUMBE",
+      "name": "Shimoga & Agumbe Rainforest",
+      "district": "Shivamogga",
+      "min_lat": 13.76,
+      "max_lat": 14.40,
+      "min_lon": 74.90,
+      "max_lon": 75.65
+    },
+    {
+      "zone_id": "ZONE_UTTARA_KANNADA",
+      "name": "Uttara Kannada Coastal & Foothills",
+      "district": "Uttara Kannada",
+      "min_lat": 14.41,
+      "max_lat": 15.10,
+      "min_lon": 74.15,
+      "max_lon": 74.90
+    },
+    {
+      "zone_id": "ZONE_WAYANAD_NILGIRIS",
+      "name": "Wayanad & Nilgiris Border Corridor",
+      "district": "Wayanad-Nilgiris",
+      "min_lat": 11.40,
+      "max_lat": 11.89,
+      "min_lon": 75.90,
+      "max_lon": 76.60
+    }
+  ]
+}

@@ -1,0 +1,290 @@
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Apache Kafka in single-node KRaft mode (No Zookeeper required)
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: mlops-kafka
+    restart: unless-stopped
+    ports:
+      - "29092:29092"   # External listener for host scripts/tests
+      - "9092:9092"     # Internal listener on mlops-net
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      CLUSTER_ID: "4L622nShTUiBenA3AeZLBg"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - mlops-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # 2. Automated Kafka Topic Initialization
+  # ---------------------------------------------------------------------------
+  kafka-init:
+    image: apache/kafka:3.7.0
+    container_name: mlops-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./scripts/init_kafka_topics.sh:/tmp/init_kafka_topics.sh:ro
+    entrypoint: ["/bin/bash", "/tmp/init_kafka_topics.sh", "kafka:9092"]
+    networks:
+      - mlops-net
+
+  # ---------------------------------------------------------------------------
+  # 3. Redis In-Memory Spatial-Temporal Feature Buffer
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: mlops-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - mlops-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # 4. MLflow Tracking & Model Registry Server
+  # ---------------------------------------------------------------------------
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: mlops-mlflow
+    restart: unless-stopped
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+      --serve-artifacts
+      --host 0.0.0.0
+      --port 5000
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    networks:
+      - mlops-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # 5. PostgreSQL Metadata Database for Airflow LocalExecutor
+  # ---------------------------------------------------------------------------
+  postgres-airflow:
+    image: postgres:15-alpine
+    container_name: mlops-airflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-postgres-data:/var/lib/postgresql/data
+    networks:
+      - mlops-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # 6. Apache Airflow DB Migration & Admin User Init
+  # ---------------------------------------------------------------------------
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    container_name: mlops-airflow-init
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: >
+      bash -c "
+      airflow db migrate &&
+      airflow users create \
+        --username airflow \
+        --password airflow \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com || true
+      "
+    networks:
+      - mlops-net
+
+  # ---------------------------------------------------------------------------
+  # 7. Apache Airflow Standalone (Webserver + Scheduler in LocalExecutor)
+  # ---------------------------------------------------------------------------
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    container_name: mlops-airflow
+    restart: unless-stopped
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: airflow
+      MLFLOW_TRACKING_URI: "http://mlflow:5000"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      PYTHONPATH: "/opt/airflow:/opt/airflow/ml_core"
+    command: airflow standalone
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../orchestration/airflow/dags:/opt/airflow/dags
+      - ../ml_core:/opt/airflow/ml_core
+      - ../data:/opt/airflow/data
+      - ../config:/opt/airflow/config
+      - ../services:/opt/airflow/services:ro
+    networks:
+      - mlops-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # 8. Real-Time Predictive Inference & Hot-Reload FastAPI Service
+  # ---------------------------------------------------------------------------
+  inference-service:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.service
+    container_name: mlops-inference-service
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      MLFLOW_TRACKING_URI: "http://mlflow:5000"
+      PYTHONPATH: "/app"
+    volumes:
+      - ../config:/app/config:ro
+      - ../ml_core:/app/ml_core:ro
+      - ../services:/app/services:ro
+      - ../frontend:/app/frontend:ro
+      - ../data/reference:/app/data/reference:ro
+    networks:
+      - mlops-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # 9. Spatial-Temporal Drift Detection Engine & Airflow Trigger Worker
+  # ---------------------------------------------------------------------------
+  drift-monitor:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.service
+    container_name: mlops-drift-monitor
+    restart: unless-stopped
+    command: ["python", "-u", "services/drift_monitor/worker.py", "--poll-interval", "10.0"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      airflow:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      AIRFLOW_WEBSERVER_URL: "http://airflow:8080"
+      AIRFLOW_USERNAME: "airflow"
+      AIRFLOW_PASSWORD: "airflow"
+      PYTHONPATH: "/app"
+    volumes:
+      - ../config:/app/config:ro
+      - ../ml_core:/app/ml_core:ro
+      - ../services:/app/services:ro
+      - ../frontend:/app/frontend:ro
+      - ../data/reference:/app/data/reference:ro
+      - ../data/reference:/app/data/reference
+    networks:
+      - mlops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+networks:
+  mlops-net:
+    name: mlops-net
+    driver: bridge
+
+volumes:
+  kafka-data:
+  redis-data:
+  mlflow-data:
+  airflow-postgres-data:

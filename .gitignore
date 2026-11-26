@@ -1,0 +1,43 @@
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments & packaging
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# Large / generated datasets & ML artifacts (transferred separately or generated via `make prepare`)
+data/
+mlruns/
+mlartifacts/
+mlflow.db
+ml_core/models/*.joblib
+ml_core/models/*.pkl
+
+# Logs & runtime state
+logs/
+*.log
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

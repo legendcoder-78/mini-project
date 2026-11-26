@@ -1,0 +1,66 @@
+# Central Configuration for MLOps Weather Early Warning System
+
+project:
+  name: "mlops-weather-early-warning"
+  version: "0.1.0"
+  description: "End-to-End MLOps Pipeline for Real-Time Model Monitoring, Drift Detection, and Automated Retraining"
+
+data:
+  raw_data_path: "data/raw/weather_telemetry_raw.csv"
+  baseline_train_path: "data/processed/baseline_train.csv"
+  stream_simulation_path: "data/processed/stream_simulation.csv"
+  baseline_stats_path: "data/reference/baseline_stats.json"
+  spatial_zones_path: "config/spatial_zones.json"
+
+features:
+  numeric_features:
+    - "rainfall_mm"
+    - "soil_moisture"
+    - "temperature_c"
+    - "humidity_pct"
+    - "wind_speed_kmh"
+  spatial_features:
+    - "latitude"
+    - "longitude"
+  derived_features:
+    - "zone_id"
+  target: "hazard_label"
+
+spatial:
+  grid_resolution_deg: 0.05
+  default_zone_fallback: "OUT_OF_BOUNDS"
+
+temporal:
+  # Split configuration: pre-monsoon normal vs. monsoon extreme drift
+  baseline_ratio: 0.60
+  stream_ratio: 0.40
+  split_date_cutoff: "2023-06-01T00:00:00Z"
+
+drift_thresholds:
+  psi_threshold: 0.2
+  ks_pvalue_threshold: 0.05
+  sliding_window_size: 500
+  multi_city_drift_threshold: 4
+
+streaming:
+  kafka:
+    bootstrap_servers: "localhost:29092"
+    internal_bootstrap_servers: "kafka:9092"
+    topics:
+      raw_telemetry: "raw-telemetry"
+      predictions_log: "predictions-log"
+      drift_alerts: "drift-alerts"
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    window_key_prefix: "window:"
+
+orchestration:
+  mlflow:
+    tracking_uri: "http://localhost:5001"
+    internal_tracking_uri: "http://mlflow:5000"
+    experiment_name: "weather-hazard-early-warning"
+    model_name: "weather-hazard-classifier"
+  airflow:
+    webserver_url: "http://localhost:8080"

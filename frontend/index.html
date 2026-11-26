@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Karnataka Extreme-Weather Early Warning & MLOps Command Dashboard</title>
+
+  <!-- Leaflet GIS Map CSS (CDN) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Dashboard Dark Theme Styles -->
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+
+  <div class="dashboard-layout">
+
+    <!-- ========================================================================
+         Fixed Left-Side Navigation Bar (Scrollable & Always Accessible)
+         ======================================================================== -->
+    <nav class="sidebar-nav">
+      <!-- Brand & Title Header -->
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-icon">🌧️</span>
+        <div class="sidebar-brand-text">
+          <div class="sidebar-brand-title">Early Warning EWS</div>
+          <div class="sidebar-brand-sub">Western Ghats &amp; Karnataka</div>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <div class="sidebar-menu">
+        <div class="menu-label">Navigation</div>
+        <a href="#section-overview" class="nav-item active" data-section="section-overview">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">Overview &amp; Vitals</span>
+        </a>
+        <a href="#section-current-model" class="nav-item" data-section="section-current-model">
+          <span class="nav-icon">🎯</span>
+          <span class="nav-text">Current Model</span>
+        </a>
+        <a href="#section-model-performance" class="nav-item" data-section="section-model-performance">
+          <span class="nav-icon">📈</span>
+          <span class="nav-text">Model Performances</span>
+        </a>
+        <a href="#section-audit-log" class="nav-item" data-section="section-audit-log">
+          <span class="nav-icon">🛡️</span>
+          <span class="nav-text">MLOps Audit Stream</span>
+        </a>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Live System Status Badges -->
+      <div class="sidebar-status-section">
+        <div class="menu-label">Live System Status</div>
+
+        <!-- Telemetry Stream Badge -->
+        <div class="sidebar-status-item">
+          <span class="status-item-label">Telemetry Stream</span>
+          <div id="ws-badge" class="badge badge-amber">
+            <span class="badge-dot pulse"></span>
+            <span id="ws-status-text">Connecting...</span>
+          </div>
+        </div>
+
+        <!-- Active Model Badge -->
+        <div class="sidebar-status-item">
+          <span class="status-item-label">Active Model</span>
+          <div id="model-badge" class="badge badge-purple">
+            <span class="badge-dot"></span>
+            <span id="model-version-text">Model: Loading...</span>
+          </div>
+        </div>
+
+        <!-- Spatial Drift Badge -->
+        <div class="sidebar-status-item">
+          <span class="status-item-label">Spatial Drift</span>
+          <div id="drift-badge" class="badge badge-green">
+            <span class="badge-dot"></span>
+            <span id="drift-status-text">Drift: Nominal</span>
+          </div>
+        </div>
+
+        <!-- Multi-City Drift Alert Indicator -->
+        <div class="sidebar-status-item">
+          <span class="status-item-label">Multi-City Status</span>
+          <div id="multi-city-badge" class="badge badge-green">
+            <span class="badge-dot"></span>
+            <span id="multi-city-status-text">4-City Gate: Normal</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Real-Time Telemetry Counters -->
+      <div class="sidebar-telemetry">
+        <div class="menu-label">Real-Time Telemetry</div>
+        <div class="sidebar-stat-card">
+          <span class="stat-label">Events Processed</span>
+          <span id="event-counter" class="stat-value">0</span>
+        </div>
+        <div class="sidebar-stat-card">
+          <span class="stat-label">Avg Inference Latency</span>
+          <span id="avg-latency" class="stat-value">0.0 ms</span>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <span>Karnataka SDMA &bull; MLOps v2.0</span>
+      </div>
+    </nav>
+
+    <!-- ========================================================================
+         Main Scrollable Command View
+         ======================================================================== -->
+    <main class="main-content">
+
+      <!-- Top Global Header -->
+      <header class="dashboard-header">
+        <div class="brand-section">
+          <div>
+            <h1 class="brand-title">Western Ghats & Karnataka Early Warning System</h1>
+            <p class="brand-subtitle">End-to-End MLOps Real-Time Monitoring, Drift Detection & Automated Retraining</p>
+          </div>
+        </div>
+        <div class="top-meta-bar">
+          <span class="meta-tag">Zero-Downtime Serving</span>
+          <span class="meta-tag">6 Geospatial Zones</span>
+          <span class="meta-tag">Automated Retraining</span>
+        </div>
+      </header>
+
+      <!-- Section 1: Overview & Vitals -->
+      <section id="section-overview" class="content-section">
+        <div class="section-header">
+          <h2 class="section-title"><span>📊</span> System Overview &amp; Health Vitals</h2>
+          <span class="section-tag">Live Infrastructure State</span>
+        </div>
+
+        <div class="overview-grid">
+          <div class="overview-card">
+            <div class="card-icon">🎯</div>
+            <div class="card-body">
+              <div class="card-label">Active Model in Production</div>
+              <div class="card-highlight" id="ov-model-version">v1 (Production)</div>
+              <div class="card-desc" id="ov-model-details">Loaded from MLflow Model Registry with zero downtime.</div>
+            </div>
+          </div>
+
+          <div class="overview-card">
+            <div class="card-icon">⚡</div>
+            <div class="card-body">
+              <div class="card-label">Drift Detection Gate</div>
+              <div class="card-highlight">Multi-City: &ge; 4 Cities</div>
+              <div class="card-desc">Rolling PSI threshold: 0.20 per micro-climate zone.</div>
+            </div>
+          </div>
+
+          <div class="overview-card">
+            <div class="card-icon">🛡️</div>
+            <div class="card-body">
+              <div class="card-label">Model Promotion Policy</div>
+              <div class="card-highlight">Champion vs. Challenger</div>
+              <div class="card-desc">+1.00% F1 improvement required to promote Challenger model.</div>
+            </div>
+          </div>
+
+          <div class="overview-card">
+            <div class="card-icon">🛰️</div>
+            <div class="card-body">
+              <div class="card-label">Sensor Coverage</div>
+              <div class="card-highlight">6 Spatial Zones</div>
+              <div class="card-desc">High-risk Western Ghats catchment &amp; coastal regions.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: Current Model -->
+      <section id="section-current-model" class="content-section">
+        <div class="section-header">
+          <h2 class="section-title"><span>🎯</span> Current Model &amp; Live Hazard Predictions</h2>
+          <span class="section-tag">Serving Engine Telemetry</span>
+        </div>
+
+        <!-- Current Model Details Cards -->
+        <div class="model-vitals-grid">
+          <div class="vitals-card">
+            <div class="vitals-header">
+              <span class="vitals-title">Model Identifier &amp; Registry</span>
+              <span class="badge badge-purple" id="cm-alias">Production</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">Model Version:</span>
+              <span class="vitals-value font-mono" id="cm-version">v1</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">Registry Source:</span>
+              <span class="vitals-value font-mono" id="cm-source">MLflow: weather-hazard-classifier@Production</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">Serving Status:</span>
+              <span class="vitals-value" id="cm-status-badge"><span class="badge badge-green">HEALTHY &amp; ACTIVE</span></span>
+            </div>
+          </div>
+
+          <div class="vitals-card">
+            <div class="vitals-header">
+              <span class="vitals-title">Deployment Timestamps</span>
+              <span class="badge badge-blue">Audit Trail</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">Deployed / Reloaded At:</span>
+              <span class="vitals-value font-mono" id="cm-loaded-at">--</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">Training Timestamp:</span>
+              <span class="vitals-value font-mono" id="cm-trained-at">--</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">Inference Features:</span>
+              <span class="vitals-value font-mono" style="font-size: 0.72rem;">5 Atmospheric Features</span>
+            </div>
+          </div>
+
+          <div class="vitals-card">
+            <div class="vitals-header">
+              <span class="vitals-title">Current Risk Telemetry</span>
+              <span class="badge badge-amber" id="cm-risk-badge">Live Real-time</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">Max Hazard Score:</span>
+              <span class="vitals-value" id="cm-max-risk" style="color: var(--green);">0.0%</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">High Risk Cities (&ge; 70%):</span>
+              <span class="vitals-value font-mono" id="cm-high-risk-count">0 of 6</span>
+            </div>
+            <div class="vitals-detail-row">
+              <span class="vitals-label">Active Monitoring:</span>
+              <span class="vitals-value" style="color: var(--green);">6 Zones Active</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- GIS Map & Real-time Predictions Layout -->
+        <div class="gis-layout-grid dashboard-grid">
+          <!-- GIS Map Container -->
+          <div class="gis-map-wrapper">
+            <div id="gis-map"></div>
+
+            <!-- Floating Map Legend Overlay -->
+            <div class="map-legend-card">
+              <div class="map-legend-title">Hazard Severity &amp; Drift</div>
+              <div class="legend-items">
+                <div class="legend-row">
+                  <span class="legend-color-dot" style="background-color: var(--green);"></span>
+                  <span>Low Risk (&lt; 0.40)</span>
+                </div>
+                <div class="legend-row">
+                  <span class="legend-color-dot" style="background-color: var(--amber);"></span>
+                  <span>Moderate Hazard (0.40 - 0.70)</span>
+                </div>
+                <div class="legend-row">
+                  <span class="legend-color-dot" style="background-color: var(--red);"></span>
+                  <span>Severe Weather Hazard (&ge; 0.70)</span>
+                </div>
+                <div class="legend-row">
+                  <span class="legend-dashed-box"></span>
+                  <span>Distribution Drifted Zone (PSI &gt; 0.20)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Monitored Cities & Risk Scores Table -->
+          <div class="city-risk-card">
+            <div class="card-header">
+              <h3 class="card-title"><span>📍</span> Monitored Cities &amp; Predicted Hazard Severity</h3>
+              <span class="badge badge-blue" style="font-size: 0.65rem;">Live Feed</span>
+            </div>
+            <div class="table-container">
+              <table class="data-table" id="city-risk-table">
+                <thead>
+                  <tr>
+                    <th>City / District</th>
+                    <th>Lat, Lon</th>
+                    <th>Hazard Risk</th>
+                    <th>Severity Status</th>
+                    <th>Latency</th>
+                  </tr>
+                </thead>
+                <tbody id="city-risk-table-body">
+                  <!-- Dynamically populated via WebSocket & REST API -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Model Performances -->
+      <section id="section-model-performance" class="content-section">
+        <div class="section-header">
+          <h2 class="section-title"><span>📈</span> Model Performances &amp; Drift Monitoring</h2>
+          <span class="section-tag">Evaluation History &amp; Statistical Quality</span>
+        </div>
+
+        <!-- Multi-City Drift Alert Banner (Shown when >= 4 cities exceed PSI 0.20) -->
+        <div id="multi-city-drift-banner" class="drift-alert-banner hidden">
+          <div class="banner-icon" id="multi-city-banner-icon">⚠️</div>
+          <div class="banner-content">
+            <div class="banner-title-row">
+              <div class="banner-title" id="multi-city-banner-title">
+                SIGNIFICANT MULTI-CITY SPATIAL DRIFT DETECTED
+              </div>
+              <div id="banner-countdown-badge" class="banner-countdown-badge hidden">
+                Status resets in <span id="banner-countdown-seconds">60</span>s
+              </div>
+            </div>
+            <div class="banner-message" id="multi-city-banner-message">
+              PSI threshold (0.20) has been exceeded in 4 or more monitored cities simultaneously. The automated model-retraining evaluation workflow has been triggered in Airflow. The currently deployed Champion model remains active and will only be replaced if a Challenger achieves a verified +1.00% F1 improvement.
+            </div>
+          </div>
+          <div class="banner-badge">
+            <span class="badge badge-red pulse" id="multi-city-banner-status-badge">Retrain Triggered</span>
+          </div>
+        </div>
+
+        <!-- Active Model Performance Metrics Cards -->
+        <div class="performance-metrics-header">
+          <div>
+            <h3 class="subsection-title">Active Model Quality Metrics</h3>
+            <p class="subsection-desc">Sourced directly from verified evaluation artifacts in MLflow. Unavailable values display "N/A" (never fabricated zeros).</p>
+          </div>
+          <div class="metrics-source-tag font-mono" id="perf-source-label">Source: MLflow Run Artifacts</div>
+        </div>
+
+        <div class="metrics-cards-grid">
+          <div class="metric-card">
+            <div class="metric-top">
+              <span class="metric-name">Accuracy</span>
+              <span class="metric-pill">Overall</span>
+            </div>
+            <div class="metric-value font-mono" id="perf-accuracy">--</div>
+            <div class="metric-sub">Classification correctness</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-top">
+              <span class="metric-name">Precision</span>
+              <span class="metric-pill">Severe Class</span>
+            </div>
+            <div class="metric-value font-mono" id="perf-precision">--</div>
+            <div class="metric-sub">True hazards / predicted hazards</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-top">
+              <span class="metric-name">Recall</span>
+              <span class="metric-pill">Severe Class</span>
+            </div>
+            <div class="metric-value font-mono" id="perf-recall">--</div>
+            <div class="metric-sub">Hazards successfully caught</div>
+          </div>
+
+          <div class="metric-card highlight-card">
+            <div class="metric-top">
+              <span class="metric-name">F1-Score</span>
+              <span class="metric-pill">Primary Gate</span>
+            </div>
+            <div class="metric-value font-mono" id="perf-f1">--</div>
+            <div class="metric-sub">Harmonic mean (+1% promotion gate)</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-top">
+              <span class="metric-name">ROC-AUC</span>
+              <span class="metric-pill">Discrimination</span>
+            </div>
+            <div class="metric-value font-mono" id="perf-roc-auc">--</div>
+            <div class="metric-sub">Area under ROC curve</div>
+          </div>
+        </div>
+
+        <!-- Visualizations Grid: Separate Live PSI Chart & Performance Chart -->
+        <div class="charts-grid">
+          <!-- Chart 1: Rolling PSI Drift Chart -->
+          <div class="chart-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title"><span>📈</span> Live Spatial Drift Monitor (Rolling PSI)</h3>
+                <p class="card-subtitle">Real-time population stability index per micro-climate zone vs. configured threshold</p>
+              </div>
+              <span class="badge badge-amber" id="psi-threshold-badge" style="font-size: 0.65rem;">Threshold: 0.20</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="drift-chart"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 2: Champion vs. Challenger Comparison Chart -->
+          <div class="chart-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title"><span>⚔️</span> Champion vs. Challenger Comparison</h3>
+                <p class="card-subtitle" id="perf-chart-subtitle">Latest Airflow automated evaluation comparison metrics</p>
+              </div>
+              <span class="badge badge-purple" id="eval-gate-badge" style="font-size: 0.65rem;">Gate: +1.0% F1</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="performance-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- City Drift & Configured Threshold Matrix Table -->
+        <div class="table-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title"><span>🗺️</span> Monitored Cities Drift &amp; Threshold Matrix</h3>
+              <p class="card-subtitle">Current PSI scores and drift status across all 6 monitored cities (Multi-City Retrain Gate: 4 Cities)</p>
+            </div>
+            <div class="table-actions">
+              <span class="badge badge-blue" id="matrix-drift-count">0 of 6 Drifted</span>
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="data-table" id="city-drift-table">
+              <thead>
+                <tr>
+                  <th>City / District</th>
+                  <th>Zone Identifier</th>
+                  <th>Current Rolling PSI</th>
+                  <th>Configured Threshold</th>
+                  <th>Drift Status</th>
+                  <th>Retraining State</th>
+                </tr>
+              </thead>
+              <tbody id="city-drift-table-body">
+                <!-- Dynamically populated via REST & WebSocket -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Model Evaluation History & Champion vs Challenger Table -->
+        <div class="table-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title"><span>📜</span> Model Evaluation History &amp; Promotion Decisions</h3>
+              <p class="card-subtitle">Official Airflow evaluation ledger comparing Champion and Challenger candidate models</p>
+            </div>
+            <span class="badge badge-purple" id="eval-history-count">0 Records</span>
+          </div>
+          <div class="table-container">
+            <table class="data-table" id="eval-history-table">
+              <thead>
+                <tr>
+                  <th style="width: 15%;">Timestamp</th>
+                  <th style="width: 10%;">Champion</th>
+                  <th style="width: 10%;">Challenger</th>
+                  <th style="width: 12%;">F1 Improvement</th>
+                  <th style="width: 12%;">Decision</th>
+                  <th style="width: 41%;">Gating Rationale &amp; Audit Trail</th>
+                </tr>
+              </thead>
+              <tbody id="eval-history-table-body">
+                <!-- Dynamically populated from /api/model/performance -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Significant Multi-City Drift Event History Table -->
+        <div class="table-card" id="drift-event-history-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title"><span>🌪️</span> Significant Multi-City Drift Event History</h3>
+              <p class="card-subtitle">Persistent chronological audit trail of multi-city drift triggers, affected cities, PSI values, and Champion–Challenger deployment outcomes</p>
+            </div>
+            <span class="badge badge-purple" id="drift-event-count">0 Events</span>
+          </div>
+          <div class="table-container">
+            <table class="data-table" id="drift-event-table">
+              <thead>
+                <tr>
+                  <th style="width: 14%;">Trigger Time</th>
+                  <th style="width: 25%;">Affected Cities &amp; PSI at Trigger</th>
+                  <th style="width: 12%;">Threshold &amp; Cities</th>
+                  <th style="width: 8%;">Model at Trigger</th>
+                  <th style="width: 8%;">Challenger</th>
+                  <th style="width: 16%;">Champion–Challenger Decision</th>
+                  <th style="width: 17%;">Final Production Model &amp; Deployment</th>
+                </tr>
+              </thead>
+              <tbody id="drift-event-table-body">
+                <!-- Dynamically populated from backend /api/model/performance -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Section 4: MLOps Audit & Event Stream -->
+      <section id="section-audit-log" class="content-section">
+        <div class="section-header">
+          <h2 class="section-title"><span>🛡️</span> MLOps Audit &amp; Event Stream</h2>
+          <span class="section-tag" id="audit-count-badge">Live Event Feed</span>
+        </div>
+
+        <div class="panel-card audit-card">
+          <div class="audit-log-container">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th style="width: 18%;">Time</th>
+                  <th style="width: 16%;">Event</th>
+                  <th style="width: 28%;">Zone / Entity</th>
+                  <th style="width: 38%;">Detail &amp; Telemetry Payload</th>
+                </tr>
+              </thead>
+              <tbody id="audit-log-body">
+                <!-- Dynamically populated via WebSocket events -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- Leaflet GIS Map JS (CDN) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Chart.js Live Charting Library (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Modular Vanilla JS Dashboard Controllers -->
+  <script src="/js/map_controller.js?v=2"></script>
+  <script src="/js/chart_controller.js"></script>
+  <script src="/js/ws_client.js"></script>
+</body>
+</html>
